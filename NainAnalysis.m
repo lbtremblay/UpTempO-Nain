@@ -29,7 +29,8 @@ lw = ncread('era5.nc', 'strd'); lw = reshape(lw(2,2,:), [8664 1]);
 snow = ncread('era5.nc', 'sd'); snow = reshape(snow(2,2,:), [8664 1]);
 
 %Import NSIDC SIC data
-conc = ncread('seaice_conc_daily_nh_2020_v04r00.nc', 'cdr_seaice_conc');
+conc20 = ncread('seaice_conc_daily_nh_2020_v04r00.nc', 'cdr_seaice_conc');
+conc18 = ncread('seaice_conc_daily_nh_2018_v04r00.nc', 'cdr_seaice_conc');
 
 %% Clean/Format Data
 
@@ -84,10 +85,20 @@ num1 = days(datetime(2020,02,21) - datetime(2020,01,01));
 num2 = days(datetime(2020,05,21) - datetime(2020,01,01));
 
 for q = num1:num2
-    layer = conc(:,:,q);
-    sic(num2+1-q) = conc(113,378,q);
+    layer = conc20(:,:,q);
+    sic(num2+1-q) = conc20(113,378,q);
 end
 t20d = addvars(t20d, flipud(sic'), 'NewVariableNames', 'sic');
+
+sic = zeros(1,height(t18d));
+num1 = days(datetime(2018,04,18) - datetime(2018,01,01));
+num2 = days(datetime(2018,05,18) - datetime(2018,01,01));
+
+for q = num1:num2
+    layer = conc18(:,:,q);
+    sic(num2+1-q) = conc18(113,378,q);
+end
+t18d = addvars(t18d, flipud(sic'), 'NewVariableNames', 'sic');
 
 %% Timeseries Plot
 %Plotting temperature time series for each depth and year
@@ -250,6 +261,24 @@ for i = 1:6
     title([int2str(depthprofile(:,i)), 'm'])
 end
 
+%Define Colormap
+cMap = turbo(256);
+dataMax = max(abs(cfs), [], 'all');
+dataMin = min(abs(cfs), [], 'all');
+
+centerPoint = 3e-3;
+scalingIntensity = 4;
+
+x = 1:length(cMap);
+x = x - (centerPoint-dataMin)*length(x)/(dataMax-dataMin);
+x = scalingIntensity*x/max(abs(x));
+
+x = sign(x).*exp(abs(x));
+x = x - min(x);
+x = x*511/max(x)+1;
+newMap = interp1(x, cMap, 1:512);
+colormap(newMap);
+
 %Format
 fontsize(15,"points")
 saveas(gcf, 'figures/wavelet.png')
@@ -309,29 +338,70 @@ saveas(gcf, 'figures/lags.png')
 
 %% Shortwave Down Plot
 
-figure()
+figure(), swd_fig = tiledlayout(2,1);
+ax1 = nexttile; ax2 = nexttile;
+swd_fig.TileSpacing = 'tight'; swd_fig.Padding = 'compact';
 colororder([0 0.4470 0.7410;0.6350 0.0780 0.1840])
-plot(t20.DataDate_UTC_, t20.(6))
-ylabel('Temperature (C)')
-yyaxis right
-plot(t20d.DataDate_UTC_, t20d.(11)/(60*60), 'LineWidth', 1.5)
-ylabel('SW Down (W/m^2)')
-title('Temperature (100m) and SWD, 2020')
 
-fontsize(15, 'points')
+yyaxis(ax1, 'left')
+plot(ax1, t20.DataDate_UTC_, t20.(6))
+ylabel(ax1, 'Temperature (C)')
+
+yyaxis(ax1, 'right')
+plot(ax1, t20d.DataDate_UTC_, t20d.(11)/(60*60), 'LineWidth', 1.5)
+ylabel(ax1, 'SW Down (W/m^2)')
+
+yyaxis(ax2, 'left')
+plot(ax2, t18.DataDate_UTC_, t18.(6))
+ylabel(ax2, 'Temperature (C)')
+
+yyaxis(ax2, 'right')
+plot(ax2, t18d.DataDate_UTC_, t18d.(11)/(60*60), 'LineWidth', 1.5)
+ylabel(ax2, 'SW Down (W/m^2)')
+
+%Define axis limits
+xlim(ax1, [datetime('2020-02-21') datetime('2020-05-22')])
+xlim(ax2, [datetime('2018-02-21') datetime('2018-05-22')])
+yyaxis(ax1, 'left')
+yyaxis(ax2, 'left')
+ylim([ax1 ax2], [min(t20{:,6}, [], 'all') max(t20{:,6}, [], 'all')])
+
+title(swd_fig, 'Temperature (100m) and SWD')
+fontsize(12, 'points')
 
 %% Snow Depth Plot
 
-figure()
+figure(), sd_fig = tiledlayout(2,1);
+ax1 = nexttile; ax2 = nexttile;
+sd_fig.TileSpacing = 'tight'; sd_fig.Padding = 'compact';
 colororder([0 0.4470 0.7410;0.6350 0.0780 0.1840])
-plot(t20.DataDate_UTC_, t20.(6))
-ylabel('Temperature (C)')
-yyaxis right
-plot(t20.DataDate_UTC_, t20.(13), 'LineWidth', 1.5)
-ylabel('Snow Depth (m)')
-title('Temperature (100m) and Snow Depth, 2020')
 
-fontsize(15, 'points')
+yyaxis(ax1, 'left')
+plot(ax1, t20.DataDate_UTC_, t20.(6))
+ylabel(ax1, 'Temperature (C)')
+
+yyaxis(ax1, 'right')
+plot(ax1, t20.DataDate_UTC_, t20.(13), 'LineWidth', 1.5)
+ylabel(ax1, 'Snow Depth (m)')
+
+yyaxis(ax2, 'left')
+plot(ax2, t18.DataDate_UTC_, t18.(6))
+ylabel(ax2, 'Temperature (C)')
+
+yyaxis(ax2, 'right')
+plot(ax2, t18.DataDate_UTC_, t18.(13), 'LineWidth', 1.5)
+ylabel(ax2, 'Snow Depth (m)')
+
+%Define axis limits
+xlim(ax1, [datetime('2020-02-21') datetime('2020-05-22')])
+xlim(ax2, [datetime('2018-02-21') datetime('2018-05-22')])
+yyaxis(ax1, 'right'), yyaxis(ax2, 'right')
+ylim([ax1 ax2], [min(t20{:,13}, [], 'all') max(t18{:,13}, [], 'all')])
+yyaxis(ax1, 'left'), yyaxis(ax2, 'left')
+ylim([ax1 ax2], [min(t20{:,6}, [], 'all') max(t20{:,6}, [], 'all')])
+
+title(sd_fig, 'Temperature (100m) and Snow Depth')
+fontsize(12, 'points')
 
 %% Hovmoller Diagram
 
@@ -370,32 +440,31 @@ x = x*511/max(x)+1;
 newMap = interp1(x, cMap, 1:512);
 colormap(newMap);
 
-%Axes
-start = datetime(2020,4,18);%datetime(2020,3,19);
-stop = datetime(2020,5,18);%datetime(2020,3,27);
-num1 = days(datetime(start) - datetime(2020,2,20));
-num2 = days(datetime(stop) - datetime(2020,2,20));
-xlim(ax1,[num1 num2])
-xt = num1+1:4:num2; xp = datetime(2020,2,21) + days(xt);
-datelabel = string(datetime(xp, 'InputFormat', 'yyyy-MM-dd HH:mm', 'Format', 'dd-MM-yy'));
-set(ax1, 'XTick',xt, 'XTickLabel', datelabel)
-colorbar
-
 %Plot 2nd Hovmoller
-x = 1:length(t18d.DataDate_UTC_);
+x = 1:length(t20d.DataDate_UTC_);
 y = depthprofile';
-z = t18d{:,1:6}';
+z = zeros(6,91);
+z(z==0) = NaN;
+z(1:6, 58:88) = t18d{:,1:6}';
 contourf(ax2,x,y,z,contourcolor)
 set(gca, 'YDir','reverse')
 shading flat
 
+%Axes
+set(ax1,'xtick',[])
+start = datetime(2018,2,21);
+stop = datetime(2018,5,21);
+num1 = days(datetime(start) - datetime(2018,2,20));
+num2 = days(datetime(stop) - datetime(2018,2,20));
+xlim(ax1,[num1 num2])
+xt = num1:14:num2; xp = datetime(2018,2,20) + days(xt);
+datelabel = string(datetime(xp, 'InputFormat', 'yyyy-MM-dd HH:mm', 'Format', 'MMM dd'));
+set(ax2, 'XTick',xt, 'XTickLabel', datelabel)
+
 %Figure/format
-title('Daily Average Temperature in Nain, 2018')
+title('Daily Average Temperature in Nain 2018')
 ylabel('Depth (m)')
 clim([-1.7755   -1.6200])
-xt = 2:4:31; xp = datetime(2018,4,18) + days(xt);
-datelabel = string(datetime(xp, 'InputFormat', 'yyyy-MM-dd HH:mm', 'Format', 'dd-MM-yy'));
-set(ax2, 'XTick',xt, 'XTickLabel', datelabel)
 
 fontsize(13, 'points')
 
@@ -412,7 +481,7 @@ end
 %Format
 ylabel('Ocean Temp (C)')
 yyaxis right, ylabel('Air Temp (C)')
-plot(t20.DataDate_UTC_, t20.(7))
+plot(t20.DataDate_UTC_, t20.(7), '--')
 title('Ocean and SST Nain, 2020')
 lg = legend('5m', '20m', '40m', '60m', '90m', '100m');
 lg.Location = 'northwest';
@@ -421,17 +490,37 @@ fontsize(14, 'points')
 
 %% NSIDC Sea Ice Concentration Plot
 
-figure()
+figure(), sic_fig = tiledlayout(2,1);
+ax1 = nexttile; ax2 = nexttile;
+sic_fig.TileSpacing = 'tight'; sic_fig.Padding = 'compact';
 colororder([0 0.4470 0.7410;0.6350 0.0780 0.1840])
-plot(t20.DataDate_UTC_, t20.(6))
-ylabel('Temperature (C)')
 
-yyaxis right
-plot(t20d.DataDate_UTC_, t20d.(14), 'LineWidth', 1.5)
-ylabel('SIC (%)')
+yyaxis(ax1, 'left')
+plot(ax1, t20.DataDate_UTC_, t20.(6))
+ylabel(ax1, 'Temperature (C)')
 
-title('Temperature (100m) and Sea Ice Concentration, 2020')
-fontsize(13, 'points')
+yyaxis(ax1, 'right')
+plot(ax1, t20d.DataDate_UTC_, t20d.(14), 'LineWidth', 1.5)
+ylabel(ax1, 'SIC (%)')
+
+yyaxis(ax2, 'left')
+plot(ax2, t18.DataDate_UTC_, t18.(6))
+ylabel(ax2, 'Temperature (C)')
+
+yyaxis(ax2, 'right')
+plot(ax2, t18d.DataDate_UTC_, t18d.(14), 'LineWidth', 1.5)
+ylabel(ax2, 'SIC (%)')
+
+%Define axis limits
+xlim(ax1, [datetime('2020-02-21') datetime('2020-05-22')])
+xlim(ax2, [datetime('2018-02-21') datetime('2018-05-22')])
+yyaxis(ax1, 'right'), yyaxis(ax2, 'right')
+ylim([ax1 ax2], [min(t18d{:,14}, [], 'all') max(t18d{:,14}, [], 'all')])
+yyaxis(ax1, 'left'), yyaxis(ax2, 'left')
+ylim([ax1 ax2], [min(t20{:,6}, [], 'all') max(t20{:,6}, [], 'all')])
+
+title(sic_fig, 'Temperature (100m) and Sea Ice Concentration')
+fontsize(12, 'points')
 
 %% Functions
 
